@@ -1,0 +1,244 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>LLM Load Test · RPM & rate limit</title>
+  <link rel="stylesheet" href="/styles.css" />
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚡</text></svg>" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <div class="logo">⚡</div>
+      <div>
+        <h1>LLM Load Test</h1>
+        <p>Uji RPM, throughput &amp; rate limit provider/model dengan k6</p>
+      </div>
+    </div>
+    <div class="health" id="health"><span class="dot"></span><span>memeriksa k6…</span></div>
+  </header>
+
+  <main class="layout">
+    <aside class="panel form-panel">
+      <form id="runForm" autocomplete="off">
+        <section class="section">
+          <h2>Provider</h2>
+          <label class="field">
+            <span>Base URL</span>
+            <input id="baseURL" name="baseURL" list="basePresets" placeholder="https://api.example.com/v1" required />
+            <datalist id="basePresets">
+              <option value="https://api.openai.com/v1"></option>
+              <option value="https://discovery-api.intern-ai.org.cn/v1"></option>
+            </datalist>
+          </label>
+          <label class="field">
+            <span>API key</span>
+            <div class="input-group">
+              <input id="apiKey" name="apiKey" type="password" placeholder="sk-…" />
+              <button type="button" class="ghost icon" id="toggleKey" title="Tampilkan / sembunyikan">👁</button>
+            </div>
+          </label>
+          <div class="inline-row">
+            <label class="check"><input type="checkbox" id="remember" /> <span>Simpan di browser</span></label>
+            <button type="button" class="btn secondary" id="loadModels">Muat model</button>
+          </div>
+          <div class="hint" id="modelsStatus"></div>
+
+          <label class="field">
+            <span>Model</span>
+            <select id="model" name="model" required>
+              <option value="">— muat daftar model dulu —</option>
+            </select>
+          </label>
+          <div class="chips" id="modelMeta"></div>
+        </section>
+
+        <section class="section">
+          <h2>Mode tes</h2>
+          <div class="tabs" id="modeTabs" role="tablist">
+            <button type="button" class="tab active" data-mode="arrival">RPM konstan</button>
+            <button type="button" class="tab" data-mode="vus">Throughput</button>
+            <button type="button" class="tab" data-mode="ramp">Ramp probe</button>
+          </div>
+
+          <div class="mode-fields" data-mode-panel="arrival">
+            <label class="field">
+              <span>Target RPM</span>
+              <input id="targetRPM" name="targetRPM" type="number" min="1" value="60" />
+              <small>Request per menit yang dikirim (open model, constant-arrival-rate).</small>
+            </label>
+            <label class="field">
+              <span>Durasi (detik)</span>
+              <input id="durationSec" name="durationSec" type="number" min="5" max="7200" value="60" />
+            </label>
+          </div>
+
+          <div class="mode-fields" data-mode-panel="vus" hidden>
+            <label class="field">
+              <span>Virtual users</span>
+              <input id="vus" name="vus" type="number" min="1" value="10" />
+              <small>Setiap VU mengirim request berikutnya begitu request sebelumnya selesai.</small>
+            </label>
+            <label class="field">
+              <span>Durasi (detik)</span>
+              <input id="durationSecVus" name="durationSecVus" type="number" min="5" max="7200" value="60" />
+            </label>
+          </div>
+
+          <div class="mode-fields" data-mode-panel="ramp" hidden>
+            <div class="two-col">
+              <label class="field">
+                <span>RPM awal</span>
+                <input id="rampStart" type="number" min="1" value="30" />
+              </label>
+              <label class="field">
+                <span>RPM akhir</span>
+                <input id="rampEnd" type="number" min="1" value="600" />
+              </label>
+            </div>
+            <div class="two-col">
+              <label class="field">
+                <span>Jumlah step</span>
+                <input id="rampSteps" type="number" min="1" value="6" />
+              </label>
+              <label class="field">
+                <span>Detik / step</span>
+                <input id="rampStepSec" type="number" min="1" value="10" />
+              </label>
+            </div>
+            <small class="hint">Rate naik bertahap untuk menemukan titik 429 / batas RPM sebenarnya.</small>
+          </div>
+        </section>
+
+        <section class="section">
+          <h2>Request</h2>
+          <label class="field">
+            <span>Prompt</span>
+            <textarea id="prompt" rows="2">Reply with the single word: ok</textarea>
+          </label>
+          <div class="two-col">
+            <label class="field">
+              <span>Max tokens</span>
+              <input id="maxTokens" type="number" min="1" value="16" />
+            </label>
+            <label class="field">
+              <span>Temperature</span>
+              <input id="temperature" type="number" min="0" max="2" step="0.1" value="0" />
+            </label>
+          </div>
+        </section>
+
+        <details class="advanced">
+          <summary>Pengaturan lanjutan</summary>
+          <div class="two-col">
+            <label class="field">
+              <span>Endpoint</span>
+              <input id="endpoint" value="/chat/completions" />
+            </label>
+            <label class="field">
+              <span>Timeout (ms)</span>
+              <input id="timeoutMs" type="number" min="1000" value="60000" />
+            </label>
+          </div>
+          <div class="two-col">
+            <label class="field">
+              <span>Pre-allocated VUs</span>
+              <input id="preAllocatedVUs" type="number" min="0" value="0" />
+              <small>0 = otomatis</small>
+            </label>
+            <label class="field">
+              <span>Max VUs</span>
+              <input id="maxVUs" type="number" min="1" value="200" />
+            </label>
+          </div>
+          <label class="field">
+            <span>RPS cap (0 = tanpa batas)</span>
+            <input id="rpsCap" type="number" min="0" value="0" />
+          </label>
+          <label class="field">
+            <span>Header tambahan (JSON)</span>
+            <textarea id="headers" rows="2" placeholder='{"x-api-key":"…"}'></textarea>
+          </label>
+          <label class="check"><input type="checkbox" id="uniquePrompt" /> <span>Prompt unik tiap request (hindari cache)</span></label>
+          <label class="check"><input type="checkbox" id="noConnectionReuse" /> <span>Jangan reuse koneksi (no keep-alive)</span></label>
+        </details>
+
+        <div class="actions">
+          <button type="submit" class="btn primary" id="startBtn">Mulai tes</button>
+          <button type="button" class="btn danger" id="stopBtn" hidden>Stop</button>
+        </div>
+        <div class="hint" id="formError"></div>
+      </form>
+    </aside>
+
+    <section class="results">
+      <div class="panel empty" id="emptyState">
+        <div class="empty-icon">📈</div>
+        <h2>Belum ada tes</h2>
+        <p>Isi provider dan API key, muat daftar model, lalu mulai tes. Hasil live muncul di sini.</p>
+      </div>
+
+      <div id="liveView" hidden>
+        <div class="panel run-head">
+          <div class="run-title">
+            <span class="status-pill" id="statusPill">running</span>
+            <span class="run-model" id="runModel">—</span>
+            <span class="run-id" id="runId"></span>
+          </div>
+          <div class="run-timer">
+            <span id="elapsed">0s</span>
+            <span class="muted" id="runTarget"></span>
+          </div>
+        </div>
+
+        <div class="kpis" id="kpis"></div>
+
+        <div class="panel chart-card">
+          <div class="card-head">
+            <h3>Request rate</h3>
+            <span class="chart-note" id="targetNote"></span>
+          </div>
+          <canvas id="chartRpm" height="170"></canvas>
+        </div>
+
+        <div class="chart-grid">
+          <div class="panel chart-card">
+            <div class="card-head"><h3>Latency (ms)</h3></div>
+            <canvas id="chartLatency" height="170"></canvas>
+          </div>
+          <div class="panel chart-card">
+            <div class="card-head"><h3>Outcome per detik</h3></div>
+            <canvas id="chartStatus" height="170"></canvas>
+          </div>
+        </div>
+
+        <div class="panel" id="summaryCard" hidden>
+          <div class="card-head">
+            <h3>Hasil akhir</h3>
+            <a class="btn secondary small" id="reportLink" target="_blank" rel="noopener">Buka laporan</a>
+          </div>
+          <div id="summaryBody"></div>
+        </div>
+
+        <div class="panel" id="limitCard" hidden>
+          <div class="card-head"><h3>Analisis rate limit</h3></div>
+          <div id="limitBody"></div>
+        </div>
+      </div>
+
+      <div class="panel history-panel">
+        <div class="card-head">
+          <h3>Riwayat tes</h3>
+          <button type="button" class="ghost small" id="refreshHistory">↻</button>
+        </div>
+        <div id="historyList" class="history-list">
+          <div class="muted small">Belum ada riwayat.</div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <script src="/app.js" type="module"></script>
+</body>
+</html>

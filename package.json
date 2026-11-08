@@ -1,0 +1,26 @@
+{
+  "name": "llm-loadtest",
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Web dashboard untuk menguji RPM, throughput, dan rate limit provider/model LLM menggunakan k6.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/keplia/llm-loadtest.git"
+  },
+  "keywords": [
+    "k6",
+    "load-testing",
+    "llm",
+    "rate-limit",
+    "rpm",
+    "openai"
+  ],
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
