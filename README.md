@@ -110,6 +110,8 @@ cd llm-loadtest
 powershell -ExecutionPolicy Bypass -File .\install.ps1
 ```
 
+> Setelah clone, kamu juga bisa **double-click `install.cmd`** untuk menjalankan installer tanpa mengetik perintah.
+
 Installer akan:
 
 1. Memasang **Node.js 22 LTS** via `winget`, atau mengunduh installer resmi bila `winget` tidak ada.
@@ -325,6 +327,7 @@ llm-loadtest/
 ├── server.js            # HTTP server + REST/SSE API + static files
 ├── install.sh           # installer Ubuntu/Debian (systemd)
 ├── install.ps1          # installer Windows (Node + k6 + shortcut/task)
+├── install.cmd          # double-click installer untuk Windows
 ├── start-public.sh      # launcher Linux (HOST=0.0.0.0 + .auth.env)
 ├── url.sh               # cetak URL publik tunnel yang aktif
 ├── k6/
